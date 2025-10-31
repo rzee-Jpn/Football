@@ -4,7 +4,7 @@ import json
 from collections import defaultdict
 
 # ===== KONFIGURASI =====
-INPUT_DIR = "datasets"  # folder tempat semua CSV/TXT
+INPUT_DIR = "https://raw.githubusercontent.com/rzee-Jpn/football-datasets/refs/heads/main/datalake/transfermarkt/player_profiles/player_profiles.csv"  # folder tempat semua CSV/TXT
 OUTPUT_DIR = "data_output"
 DEFAULT_SEASON = "2024/2025"
 
