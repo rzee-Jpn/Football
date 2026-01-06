@@ -2,6 +2,9 @@ import requests, json, os, time, re
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 
+# =====================
+# CONFIG
+# =====================
 BASE = "https://www.gutenberg.org"
 BOOKSHELF_START = "https://www.gutenberg.org/ebooks/bookshelf/696"
 LIMIT_PER_RUN = 3
@@ -19,6 +22,9 @@ CHAPTER_REGEX = re.compile(
     re.IGNORECASE | re.MULTILINE
 )
 
+# =====================
+# STATE
+# =====================
 def load_state():
     if not os.path.exists("state.json"):
         return {
@@ -33,6 +39,9 @@ def save_state(state):
     with open("state.json", "w") as f:
         json.dump(state, f, indent=2)
 
+# =====================
+# GUTENBERG HELPERS
+# =====================
 def get_bookshelf_page(url):
     r = requests.get(url, headers=HEADERS, timeout=15)
     r.raise_for_status()
@@ -69,6 +78,29 @@ def clean_gutenberg_text(text):
         return text[start:end]
     return text
 
+# =====================
+# METADATA
+# =====================
+def extract_metadata(text):
+    title = "Unknown Title"
+    author = ""
+
+    for line in text.splitlines()[:60]:
+        if line.lower().startswith("title:"):
+            title = line.split(":", 1)[1].strip()
+        elif line.lower().startswith("author:"):
+            author = line.split(":", 1)[1].strip()
+
+    return title, author
+
+def slugify(text):
+    text = text.lower()
+    text = re.sub(r'[^a-z0-9]+', '-', text)
+    return text.strip("-") or "untitled"
+
+# =====================
+# TOC
+# =====================
 def extract_toc(text):
     toc = []
     for m in CHAPTER_REGEX.finditer(text):
@@ -100,6 +132,9 @@ def render_sidebar(toc):
 </aside>
 """
 
+# =====================
+# SAVE FILES
+# =====================
 def save_txt(book_id, text):
     path = f"{TXT_DIR}/{book_id}.txt"
     if os.path.exists(path):
@@ -109,6 +144,9 @@ def save_txt(book_id, text):
     return True
 
 def txt_to_html(book_id, text):
+    title, author = extract_metadata(text)
+    slug = slugify(title)
+
     toc = extract_toc(text)
     content = inject_anchors(text, toc)
     sidebar = render_sidebar(toc)
@@ -117,7 +155,7 @@ def txt_to_html(book_id, text):
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Book #{book_id} | Economics</title>
+<title>{title}</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
 body {{
@@ -151,6 +189,8 @@ pre {{ white-space: pre-wrap; }}
 {sidebar}
 
 <main id="content">
+<h1>{title}</h1>
+<p><em>{author}</em></p>
 <pre>{content}</pre>
 <footer>
 <p>Source: Project Gutenberg — Public Domain</p>
@@ -161,15 +201,31 @@ pre {{ white-space: pre-wrap; }}
 </html>
 """
 
-    with open(f"{HTML_DIR}/{book_id}.html", "w", encoding="utf-8") as f:
-        f.write(html)
+    filename = f"{slug}.html"
+    path = f"{HTML_DIR}/{filename}"
 
+    if not os.path.exists(path):
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(html)
+
+    return filename, title
+
+# =====================
+# INDEX
+# =====================
 def generate_index():
-    books = sorted(os.listdir(HTML_DIR))
-    items = "\n".join(
-        f'<li><a href="books/html/{b}">{b.replace(".html","")}</a></li>'
-        for b in books
-    )
+    items = []
+
+    for file in sorted(os.listdir(HTML_DIR)):
+        path = f"{HTML_DIR}/{file}"
+        with open(path, encoding="utf-8") as f:
+            html = f.read()
+
+        m = re.search(r"<h1>(.*?)</h1>", html)
+        title = m.group(1) if m else file.replace(".html", "")
+
+        items.append(f'<li><a href="books/html/{file}">{title}</a></li>')
+
     html = f"""<!DOCTYPE html>
 <html>
 <head>
@@ -178,13 +234,19 @@ def generate_index():
 </head>
 <body>
 <h1>Public Domain Economics Books</h1>
-<ul>{items}</ul>
+<ul>
+{''.join(items)}
+</ul>
 <p>Source: Project Gutenberg</p>
 </body>
 </html>"""
+
     with open("index.html", "w", encoding="utf-8") as f:
         f.write(html)
 
+# =====================
+# MAIN
+# =====================
 def main():
     state = load_state()
     if state.get("finished"):
