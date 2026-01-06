@@ -1,4 +1,4 @@
-import requests, json, os, time
+import requests, json, os, time, re
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 
@@ -13,6 +13,11 @@ os.makedirs(TXT_DIR, exist_ok=True)
 os.makedirs(HTML_DIR, exist_ok=True)
 
 HEADERS = {"User-Agent": "Gutenberg-Economics-Crawler/1.0"}
+
+CHAPTER_REGEX = re.compile(
+    r'^(CHAPTER|BOOK|PART)\s+([IVXLCDM]+|\d+)\b.*',
+    re.IGNORECASE | re.MULTILINE
+)
 
 def load_state():
     if not os.path.exists("state.json"):
@@ -64,6 +69,37 @@ def clean_gutenberg_text(text):
         return text[start:end]
     return text
 
+def extract_toc(text):
+    toc = []
+    for m in CHAPTER_REGEX.finditer(text):
+        title = m.group(0).strip()
+        anchor = re.sub(r'[^a-z0-9]+', '-', title.lower()).strip('-')
+        toc.append((title, anchor))
+    return toc
+
+def inject_anchors(text, toc):
+    for title, anchor in toc:
+        text = text.replace(
+            title,
+            f'<h2 id="{anchor}">{title}</h2>',
+            1
+        )
+    return text
+
+def render_sidebar(toc):
+    if not toc:
+        return ""
+    items = "\n".join(
+        f'<li><a href="#{a}">{t}</a></li>'
+        for t, a in toc
+    )
+    return f"""
+<aside id="toc">
+<h3>Daftar Isi</h3>
+<ul>{items}</ul>
+</aside>
+"""
+
 def save_txt(book_id, text):
     path = f"{TXT_DIR}/{book_id}.txt"
     if os.path.exists(path):
@@ -73,26 +109,58 @@ def save_txt(book_id, text):
     return True
 
 def txt_to_html(book_id, text):
+    toc = extract_toc(text)
+    content = inject_anchors(text, toc)
+    sidebar = render_sidebar(toc)
+
     html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>{book_id} | Project Gutenberg Economics</title>
+<title>Book #{book_id} | Economics</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-body{{max-width:800px;margin:auto;font-family:serif;line-height:1.6;padding:20px}}
-pre{{white-space:pre-wrap}}
-footer{{margin-top:40px;font-size:0.9em;color:#555}}
+body {{
+  margin: 0;
+  display: flex;
+  font-family: serif;
+}}
+#toc {{
+  width: 260px;
+  padding: 20px;
+  border-right: 1px solid #ddd;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}}
+#content {{
+  max-width: 900px;
+  padding: 40px;
+}}
+h2 {{ margin-top: 2em; }}
+pre {{ white-space: pre-wrap; }}
+@media (max-width: 900px) {{
+  #toc {{ display: none; }}
+  body {{ flex-direction: column; }}
+}}
 </style>
 </head>
 <body>
-<h1>Gutenberg Economics Book #{book_id}</h1>
-<pre>{text}</pre>
+
+{sidebar}
+
+<main id="content">
+<pre>{content}</pre>
 <footer>
 <p>Source: Project Gutenberg — Public Domain</p>
 </footer>
+</main>
+
 </body>
-</html>"""
+</html>
+"""
+
     with open(f"{HTML_DIR}/{book_id}.html", "w", encoding="utf-8") as f:
         f.write(html)
 
@@ -106,12 +174,12 @@ def generate_index():
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Economics Books – Project Gutenberg</title>
+<title>Economics Books — Public Domain</title>
 </head>
 <body>
 <h1>Public Domain Economics Books</h1>
 <ul>{items}</ul>
-<p>Source: Project Gutenberg (Public Domain)</p>
+<p>Source: Project Gutenberg</p>
 </body>
 </html>"""
     with open("index.html", "w", encoding="utf-8") as f:
