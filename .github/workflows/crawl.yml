@@ -20,11 +20,13 @@ jobs:
         with:
           python-version: '3.11'
 
-      - run: pip install requests beautifulsoup4 lxml
+      - name: Install dependencies
+        run: pip install requests beautifulsoup4 lxml
 
-      - run: python crawler.py
+      - name: Run crawler
+        run: python crawler.py
 
-      - name: Commit and push
+      - name: Commit and push (safe)
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
