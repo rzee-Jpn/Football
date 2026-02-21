@@ -1,0 +1,207 @@
+```css
+:root {
+  --bg-color: #1a1a2e;
+  --cell-bg: #ffffff;
+  --active-cell-bg: #fff176;
+  --highlighted-cell-bg: #fffde7;
+  --correct-cell-bg: #a5d6a7;
+  --wrong-cell-bg: #ef9a9a;
+  --black-cell-bg: #212121;
+  --text-color: #000000;
+  --font-size: 18px;
+  --font-family: monospace;
+  --number-size: 9px;
+  --header-color: #ffffff;
+  --button-bg: #4a4a4a;
+  --button-hover-bg: #5a5a5a;
+  --button-active-bg: #3a3a3a;
+  --keyboard-bg: #333333;
+  --keyboard-key-bg: #4a4a4a;
+  --keyboard-key-hover-bg: #5a5a5a;
+  --keyboard-key-active-bg: #3a3a3a;
+  --clue-bg: #2a2a2a;
+  --clue-text: #ffffff;
+  --overlay-bg: rgba(0, 0, 0, 0.8);
+  --overlay-text: #ffffff;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-family);
+  background-color: var(--bg-color);
+  color: var(--header-color);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+}
+
+#app {
+  width: 100%;
+  max-width: 768px;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+#header {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+#header h1 {
+  margin: 0;
+  font-size: 24px;
+}
+
+#progress {
+  font-size: 16px;
+  margin-top: 10px;
+}
+
+#grid-container {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+#crossword-grid {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 2px;
+  width: 100%;
+  max-width: 360px;
+}
+
+.cell {
+  position: relative;
+  width: 100%;
+  padding-top: 100%;
+  background-color: var(--cell-bg);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: var(--font-size);
+  font-weight: bold;
+  color: var(--text-color);
+  transition: background-color 0.2s ease;
+}
+
+.cell.black {
+  background-color: var(--black-cell-bg);
+}
+
+.cell.active {
+  background-color: var(--active-cell-bg);
+}
+
+.cell.highlighted {
+  background-color: var(--highlighted-cell-bg);
+}
+
+.cell.correct {
+  background-color: var(--correct-cell-bg);
+}
+
+.cell.wrong {
+  background-color: var(--wrong-cell-bg);
+}
+
+.cell .number {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  font-size: var(--number-size);
+  color: var(--text-color);
+}
+
+#clue-banner {
+  background-color: var(--clue-bg);
+  color: var(--clue-text);
+  padding: 10px;
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+#keyboard {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 5px;
+  background-color: var(--keyboard-bg);
+  padding: 10px;
+  margin-bottom: 20px;
+}
+
+.keyboard-key {
+  background-color: var(--keyboard-key-bg);
+  color: var(--header-color);
+  padding: 10px;
+  text-align: center;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.keyboard-key:hover {
+  background-color: var(--keyboard-key-hover-bg);
+}
+
+.keyboard-key:active {
+  background-color: var(--keyboard-key-active-bg);
+}
+
+#controls {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.button {
+  background-color: var(--button-bg);
+  color: var(--header-color);
+  padding: 10px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.button:hover {
+  background-color: var(--button-hover-bg);
+}
+
+.button:active {
+  background-color: var(--button-active-bg);
+}
+
+#json-panel {
+  background-color: var(--clue-bg);
+  color: var(--clue-text);
+  padding: 10px;
+  margin-bottom: 20px;
+}
+
+#json-textarea {
+  width: 100%;
+  height: 100px;
+  margin-bottom: 10px;
+  background-color: var(--cell-bg);
+  color: var(--text-color);
+  border: none;
+  padding: 10px;
+  box-sizing: border-box;
+}
+
+#overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: var(--overlay-bg);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: var(--overlay-text);
+  font-size: 24px;
+  text-align: center;
+}
+```
