@@ -1,0 +1,102 @@
+name: 🎮 AI Game Builder
+
+on:
+  push:
+    paths:
+      - "blueprint.md"
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+    inputs:
+      force_rebuild:
+        description: "Force rebuild dari blueprint"
+        required: false
+        default: "false"
+      ai_model:
+        description: "Override AI model (contoh: openai/gpt-4o)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🛠️ Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: 📦 Install dependencies
+        run: npm install
+
+      - name: 🤖 AI Generate Game
+        run: node scripts/ai-builder.js
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          AI_MODEL: ${{ github.event.inputs.ai_model || '' }}
+
+      - name: 🔨 Build Project
+        id: build_first
+        run: npm run build
+        continue-on-error: true
+
+      - name: 🔧 AI Auto-Fix (if build failed)
+        if: steps.build_first.outcome == 'failure'
+        run: node scripts/error-fixer.js
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          AI_MODEL: ${{ github.event.inputs.ai_model || '' }}
+          FIX_RETRIES: "3"
+
+      - name: ✅ Verify build output
+        run: |
+          if [ -d "dist" ]; then
+            echo "✅ dist/ exists"
+            ls -la dist/
+          else
+            echo "❌ dist/ not found!"
+            exit 1
+          fi
+
+      - name: 💾 Commit generated files
+        run: |
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add src/ index.html .ai-build-meta.json .ai-fix-result.json 2>/dev/null || true
+          if git diff --staged --quiet; then
+            echo "ℹ️  No changes to commit"
+          else
+            git commit -m "🎮 [skip ci] AI generated game from blueprint"
+            git push origin HEAD
+          fi
+
+      - name: 🚀 Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          commit_message: "🚀 [skip ci] Deploy AI generated game"
+
+      - name: 📊 Build Summary
+        run: |
+          echo "## 🎮 AI Game Builder — Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Game berhasil di-generate dan deploy!" >> $GITHUB_STEP_SUMMARY
+          echo "| Info | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Model | \`${{ github.event.inputs.ai_model || 'default (config.js)' }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Triggered by | \`${{ github.event_name }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "🌐 **Live URL**: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/" >> $GITHUB_STEP_SUMMARY
