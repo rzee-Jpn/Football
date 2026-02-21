@@ -1,0 +1,106 @@
+name: 🎮 AI Game Builder
+
+on:
+  push:
+    paths:
+      - "blueprint.md"
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+    inputs:
+      ai_model:
+        description: "Override AI model (opsional)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🛠️ Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: 📦 Install dependencies
+        run: npm install
+
+      - name: 🤖 AI Generate Game
+        run: node scripts/ai-builder.js
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          AI_MODEL: ${{ github.event.inputs.ai_model || '' }}
+
+      # Cek apakah ini Phaser (butuh build) atau Vanilla (langsung deploy)
+      - name: 🔍 Detect project type
+        id: detect
+        run: |
+          if [ -f "src/main.js" ]; then
+            echo "type=phaser" >> $GITHUB_OUTPUT
+          else
+            echo "type=vanilla" >> $GITHUB_OUTPUT
+            # Buat folder dist dari index.html langsung
+            mkdir -p dist
+            cp index.html dist/
+            echo "✅ Vanilla project — copied index.html to dist/"
+          fi
+
+      - name: 🔨 Build Phaser project
+        if: steps.detect.outputs.type == 'phaser'
+        id: build_phaser
+        run: npm run build
+        continue-on-error: true
+
+      - name: 🔧 AI Auto-Fix (jika build Phaser gagal)
+        if: steps.detect.outputs.type == 'phaser' && steps.build_phaser.outcome == 'failure'
+        run: node scripts/error-fixer.js
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          AI_MODEL: ${{ github.event.inputs.ai_model || '' }}
+          FIX_RETRIES: "3"
+
+      - name: ✅ Verify dist
+        run: |
+          if [ -d "dist" ] && [ -f "dist/index.html" ]; then
+            echo "✅ dist/index.html exists"
+          else
+            echo "❌ dist/index.html not found!"
+            exit 1
+          fi
+
+      - name: 💾 Commit generated files
+        run: |
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add -A
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "🎮 [skip ci] AI generated game"
+            git push origin HEAD
+          fi
+
+      - name: 🚀 Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          commit_message: "🚀 [skip ci] Deploy"
+
+      - name: 📊 Summary
+        run: |
+          echo "## ✅ Deploy sukses!" >> $GITHUB_STEP_SUMMARY
+          echo "🌐 https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/" >> $GITHUB_STEP_SUMMARY
