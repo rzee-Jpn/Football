@@ -1,125 +1,88 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="id">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>My TTS</title>
-  <style>
-    body {
-      margin: 0;
-      padding: 0;
-      background-color: #0f0e0c;
-      color: white;
-      font-family: Arial, sans-serif;
-    }
-    canvas {
-      display: block;
-      margin: 0 auto;
-    }
-    .container {
-      max-width: 768px;
-      margin: 0 auto;
-      padding: 20px;
-    }
-    .header {
-      text-align: center;
-      margin-bottom: 20px;
-    }
-    .grid-container {
-      overflow: auto;
-      margin-bottom: 20px;
-    }
-    .banner {
-      text-align: center;
-      margin-bottom: 20px;
-    }
-    .keyboard {
-      display: grid;
-      grid-template-columns: repeat(10, 1fr);
-      gap: 5px;
-      margin-bottom: 20px;
-    }
-    .keyboard button {
-      padding: 10px;
-      font-size: 16px;
-      background-color: #333;
-      color: white;
-      border: none;
-      border-radius: 5px;
-      cursor: pointer;
-    }
-    .panel {
-      background-color: #222;
-      padding: 20px;
-      border-radius: 10px;
-    }
-    .panel textarea {
-      width: 100%;
-      height: 100px;
-      margin-bottom: 10px;
-      background-color: #333;
-      color: white;
-      border: none;
-      padding: 10px;
-      border-radius: 5px;
-    }
-    .panel button {
-      padding: 10px 20px;
-      font-size: 16px;
-      background-color: #444;
-      color: white;
-      border: none;
-      border-radius: 5px;
-      cursor: pointer;
-    }
-  </style>
-  <script type="module" crossorigin src="./assets/index-BkQSwzr1.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TTS Nusantara</title>
+    <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <div class="container">
-    <div class="header">
-      <h1>My TTS</h1>
-      <div class="progress-bar"></div>
+    <div id="app">
+        <header id="header">
+            <h1>TTS Nusantara</h1>
+            <div id="progress">0/10 kata</div>
+        </header>
+
+        <main>
+            <div id="grid-container">
+                <div id="crossword-grid"></div>
+            </div>
+
+            <div id="clue-banner">
+                <p id="current-clue">Pilih kata untuk melihat petunjuk</p>
+            </div>
+
+            <div id="controls">
+                <button id="check-btn" class="control-btn">CEK</button>
+                <button id="hint-btn" class="control-btn">PETUNJUK</button>
+                <button id="reset-btn" class="control-btn">RESET</button>
+            </div>
+
+            <div id="keyboard-container">
+                <div class="keyboard-row">
+                    <button class="key" data-key="Q">Q</button>
+                    <button class="key" data-key="W">W</button>
+                    <button class="key" data-key="E">E</button>
+                    <button class="key" data-key="R">R</button>
+                    <button class="key" data-key="T">T</button>
+                    <button class="key" data-key="Y">Y</button>
+                    <button class="key" data-key="U">U</button>
+                    <button class="key" data-key="I">I</button>
+                    <button class="key" data-key="O">O</button>
+                    <button class="key" data-key="P">P</button>
+                </div>
+                <div class="keyboard-row">
+                    <button class="key" data-key="A">A</button>
+                    <button class="key" data-key="S">S</button>
+                    <button class="key" data-key="D">D</button>
+                    <button class="key" data-key="F">F</button>
+                    <button class="key" data-key="G">G</button>
+                    <button class="key" data-key="H">H</button>
+                    <button class="key" data-key="J">J</button>
+                    <button class="key" data-key="K">K</button>
+                    <button class="key" data-key="L">L</button>
+                </div>
+                <div class="keyboard-row">
+                    <button class="key" data-key="Z">Z</button>
+                    <button class="key" data-key="X">X</button>
+                    <button class="key" data-key="C">C</button>
+                    <button class="key" data-key="V">V</button>
+                    <button class="key" data-key="B">B</button>
+                    <button class="key" data-key="N">N</button>
+                    <button class="key" data-key="M">M</button>
+                    <button id="backspace-btn" class="key special-key">⌫</button>
+                </div>
+            </div>
+
+            <div id="json-panel" class="collapsed">
+                <button id="toggle-json-btn">Ganti Soal ▼</button>
+                <div id="json-editor">
+                    <textarea id="json-input" placeholder="Tempel JSON soal baru di sini..."></textarea>
+                    <button id="load-json-btn">Muat Soal</button>
+                    <div id="json-error"></div>
+                </div>
+            </div>
+        </main>
+
+        <div id="win-overlay" class="hidden">
+            <div class="win-content">
+                <h2>🎉 Selamat!</h2>
+                <p id="completion-time">Waktu penyelesaian: 00:00</p>
+                <button id="play-again-btn">Main Lagi</button>
+            </div>
+        </div>
     </div>
-    <div class="grid-container">
-      <canvas id="gameCanvas"></canvas>
-    </div>
-    <div class="banner">
-      <p class="clue-text"></p>
-    </div>
-    <div class="keyboard">
-      <button data-key="Q">Q</button>
-      <button data-key="W">W</button>
-      <button data-key="E">E</button>
-      <button data-key="R">R</button>
-      <button data-key="T">T</button>
-      <button data-key="Y">Y</button>
-      <button data-key="U">U</button>
-      <button data-key="I">I</button>
-      <button data-key="O">O</button>
-      <button data-key="P">P</button>
-      <button data-key="A">A</button>
-      <button data-key="S">S</button>
-      <button data-key="D">D</button>
-      <button data-key="F">F</button>
-      <button data-key="G">G</button>
-      <button data-key="H">H</button>
-      <button data-key="J">J</button>
-      <button data-key="K">K</button>
-      <button data-key="L">L</button>
-      <button data-key="Z">Z</button>
-      <button data-key="X">X</button>
-      <button data-key="C">C</button>
-      <button data-key="V">V</button>
-      <button data-key="B">B</button>
-      <button data-key="N">N</button>
-      <button data-key="M">M</button>
-      <button data-key="Backspace">⌫</button>
-    </div>
-    <div class="panel">
-      <textarea id="jsonInput" placeholder="Paste JSON baru di sini..."></textarea>
-      <button id="loadJson">Muat Soal</button>
-    </div>
-  </div>
+
+    <script type="module" src="js/main.js"></script>
 </body>
 </html>
