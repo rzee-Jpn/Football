@@ -1,7 +1,8 @@
 /**
- * AI Game Builder v4
- * Multi-file generation — CSS, JS modules terpisah
- * Setiap file kecil = AI tidak kehabisan token
+ * AI Game Builder v5
+ * Fix: Interface Contract — semua file sepakat dulu sebelum generate
+ * Fix: Context penuh (bukan 500 char) untuk file kecil
+ * Fix: Win condition guard, grid render validation
  */
 
 import fs from "fs";
@@ -80,127 +81,225 @@ async function callAI(system, user, maxTokens = 8000, retries = CONFIG.apiRetrie
 }
 
 // ── STEP 1: PLANNER ──────────────────────────────────────────
-// Planner membaca blueprint dan memutuskan struktur file
 
 async function runPlanner(blueprint) {
   log("🧠 [Step 1] Planner...");
 
   const raw = await callAI(
     `You are a web game file structure planner.
-Read the blueprint carefully, especially the Tech Stack section.
+Read the blueprint Tech Stack section carefully.
 Output ONLY valid JSON — no markdown, no explanation.`,
 
     `Blueprint:
 ${blueprint}
 
-Decide the tech stack and file structure.
+If blueprint says "Phaser", return techStack "phaser" with Phaser scene files.
+If blueprint says "pure HTML/CSS/JS" or "vanilla", return techStack "vanilla" with split files.
 
-If blueprint says "Phaser", return:
-{
-  "gameName": "...",
-  "techStack": "phaser",
-  "files": [
-    { "path": "index.html",                   "role": "HTML entry point" },
-    { "path": "src/main.js",                  "role": "Phaser game config + scene registry" },
-    { "path": "src/scenes/BootScene.js",      "role": "Preload assets, go to Menu" },
-    { "path": "src/scenes/MenuScene.js",      "role": "Main menu UI" },
-    { "path": "src/scenes/GameScene.js",      "role": "Core gameplay — ALL mechanics here" },
-    { "path": "src/scenes/GameOverScene.js",  "role": "Game over screen" }
-  ],
-  "mechanics": ["..."],
-  "notes": "..."
-}
-
-If blueprint says "pure HTML/CSS/JS" or "vanilla", split into multiple focused files:
+For vanilla, use this structure:
 {
   "gameName": "...",
   "techStack": "vanilla",
   "files": [
-    { "path": "index.html",        "role": "HTML structure only — no inline JS/CSS" },
-    { "path": "css/style.css",     "role": "All styling" },
-    { "path": "js/data.js",        "role": "Default game data / JSON — export const DEFAULT_DATA" },
-    { "path": "js/grid.js",        "role": "Grid rendering and cell management" },
-    { "path": "js/keyboard.js",    "role": "Virtual keyboard and input handling" },
-    { "path": "js/game.js",        "role": "Game logic: check answers, hints, timer, win" },
-    { "path": "js/main.js",        "role": "App init, wires all modules together" }
+    { "path": "index.html",     "role": "HTML structure only, no inline JS/CSS" },
+    { "path": "css/style.css",  "role": "All styling" },
+    { "path": "js/data.js",     "role": "Default game data, export const DEFAULT_DATA" },
+    { "path": "js/grid.js",     "role": "Grid rendering" },
+    { "path": "js/keyboard.js", "role": "Virtual keyboard and input" },
+    { "path": "js/game.js",     "role": "Game logic: check, hint, timer, win" },
+    { "path": "js/main.js",     "role": "App init, wires all modules" }
   ],
-  "mechanics": ["..."],
-  "notes": "..."
+  "mechanics": ["..."]
 }
 
-Add or remove files based on game complexity. Keep each file focused on ONE responsibility.`,
+For phaser:
+{
+  "gameName": "...",
+  "techStack": "phaser",
+  "files": [
+    { "path": "index.html",                  "role": "HTML entry" },
+    { "path": "src/main.js",                 "role": "Phaser config + scene registry" },
+    { "path": "src/scenes/BootScene.js",     "role": "Preload, go to Menu" },
+    { "path": "src/scenes/MenuScene.js",     "role": "Main menu" },
+    { "path": "src/scenes/GameScene.js",     "role": "Core gameplay" },
+    { "path": "src/scenes/GameOverScene.js", "role": "Game over screen" }
+  ],
+  "mechanics": ["..."]
+}`,
     2000
   );
 
   const plan = parseAIResponse(raw);
-  log(`  Game      : ${plan.gameName}`);
-  log(`  Tech Stack: ${plan.techStack}`);
-  plan.files.forEach(f => log(`  📄 ${f.path} — ${f.role}`));
+  log(`  Game : ${plan.gameName} | Stack: ${plan.techStack}`);
+  plan.files.forEach(f => log(`  📄 ${f.path}`));
   return plan;
 }
 
-// ── STEP 2: GENERATE FILE PER FILE ───────────────────────────
+// ── STEP 2: CONTRACT — kunci utama v5 ────────────────────────
+// AI tentukan function signatures & DOM ids SEBELUM generate file
 
-async function generateOneFile(fileInfo, blueprint, plan, alreadyGenerated, attempt = 1) {
-  if (attempt > 3) throw new Error(`Gagal generate ${fileInfo.path} setelah 3 percobaan`);
+async function buildContract(blueprint, plan) {
+  log("\n📋 [Step 2] Building interface contract...");
+
+  if (plan.techStack === "phaser") {
+    // Phaser pakai scene registry, tidak perlu contract khusus
+    return null;
+  }
+
+  const fileList = plan.files.map(f => `${f.path} — ${f.role}`).join("\n");
+
+  const raw = await callAI(
+    `You are a software architect. Define the exact interface contract between files.
+Output ONLY valid JSON — no markdown, no explanation.`,
+
+    `Blueprint: ${blueprint.substring(0, 800)}
+
+Files:
+${fileList}
+
+Define the EXACT contract. Every export, DOM id, and event must be agreed here.
+Other files will import/use exactly these — no deviation allowed.
+
+Return:
+{
+  "domIds": {
+    "grid-container": "div where grid cells are rendered",
+    "clue-banner": "p/div showing active clue text",
+    "progress-text": "span showing X/Y kata",
+    "keyboard-container": "div for virtual keyboard",
+    "json-textarea": "textarea for JSON input",
+    "win-overlay": "div shown on game complete"
+  },
+  "exports": {
+    "js/data.js": [
+      "export const DEFAULT_DATA = { title, words: [{id,word,clue,row,col,dir}] }"
+    ],
+    "js/grid.js": [
+      "export function buildGridMatrix(words): returns 2D array of cell objects",
+      "export function renderGrid(containerId, words, onCellClick): void"
+    ],
+    "js/keyboard.js": [
+      "export function initKeyboard(containerId, onKey): void",
+      "export function destroyKeyboard(): void"
+    ],
+    "js/game.js": [
+      "export class CrosswordGame",
+      "  constructor(words, callbacks): words.length > 0 required",
+      "  selectCell(row, col): void",
+      "  inputLetter(letter): void",
+      "  backspace(): void",
+      "  checkAnswers(): { correct: number, total: number }",
+      "  getHint(): void",
+      "  reset(): void",
+      "  loadNewData(data): void — rebuild game with new words",
+      "  get solvedCount(): number — only increment when word fully correct",
+      "  checkWin(): boolean — return true only if solvedCount === words.length AND words.length > 0"
+    ],
+    "js/main.js": [
+      "import { DEFAULT_DATA } from './data.js'",
+      "import { renderGrid } from './grid.js'",
+      "import { initKeyboard } from './keyboard.js'",
+      "import { CrosswordGame } from './game.js'",
+      "DOMContentLoaded: renderGrid('grid-container', data.words, handleCellClick)",
+      "DOMContentLoaded: new CrosswordGame(data.words, { onWin, onProgress })",
+      "DOMContentLoaded: initKeyboard('keyboard-container', handleKey)"
+    ]
+  },
+  "criticalRules": [
+    "game.js checkWin() MUST guard: if words.length === 0 return false",
+    "game.js constructor MUST set this.totalWords = words.length",
+    "grid.js renderGrid MUST clear container before rendering",
+    "main.js MUST call renderGrid BEFORE new CrosswordGame",
+    "win overlay MUST be hidden by default (display:none), shown only on win"
+  ]
+}`,
+    3000
+  );
+
+  const contract = parseAIResponse(raw);
+  log(`  DOM ids  : ${Object.keys(contract.domIds || {}).join(", ")}`);
+  log(`  Contracts: ${Object.keys(contract.exports || {}).join(", ")}`);
+  log(`  Rules    : ${(contract.criticalRules || []).length} rules`);
+  return contract;
+}
+
+// ── STEP 3: GENERATE FILE PER FILE ───────────────────────────
+
+async function generateOneFile(fileInfo, blueprint, plan, contract, alreadyGenerated, attempt = 1) {
+  if (attempt > 3) throw new Error(`Gagal generate ${fileInfo.path} setelah 3x`);
 
   const isVanilla = plan.techStack === "vanilla";
-  const isPhaser  = plan.techStack === "phaser";
+  const p = fileInfo.path;
 
-  // Konteks singkat dari file yang sudah digenerate
-  const context = alreadyGenerated
-    .map(f => {
-      const preview = f.content.substring(0, 500);
-      return `=== ${f.path} (${f.role}) ===\n${preview}${f.content.length > 500 ? "\n// ..." : ""}`;
-    })
-    .join("\n\n");
+  // ── Context: file sudah digenerate (PENUH untuk file kecil, ringkas untuk besar) ──
+  const context = alreadyGenerated.map(f => {
+    // CSS dan data.js biasanya kecil — kirim penuh
+    const isTiny = f.path.endsWith(".css") || f.path.includes("data.js");
+    const limit  = isTiny ? 99999 : 1200;
+    const body   = f.content.length > limit
+      ? f.content.substring(0, limit) + "\n// ... (truncated)"
+      : f.content;
+    return `=== ${f.path} ===\n${body}`;
+  }).join("\n\n");
 
-  // Daftar semua file dalam project untuk referensi import
-  const fileList = plan.files
-    .map(f => `${f.path} — ${f.role}`)
-    .join("\n");
+  // ── Contract string untuk file ini ──
+  const myContract  = contract?.exports?.[p]?.join("\n") || "";
+  const allContracts = contract
+    ? Object.entries(contract.exports || {})
+        .map(([k, v]) => `${k}:\n  ${v.join("\n  ")}`)
+        .join("\n")
+    : "";
+  const domIds = contract
+    ? Object.entries(contract.domIds || {})
+        .map(([k, v]) => `#${k} — ${v}`)
+        .join("\n")
+    : "";
+  const criticalRules = (contract?.criticalRules || []).join("\n- ");
 
-  // ── System prompt berdasarkan tech stack ──
+  // ── System prompt ──
   const systemPrompt = isVanilla
-    ? `You are an expert frontend developer (HTML/CSS/JavaScript ES modules).
-Generate ONE complete, production-ready file for a web game.
+    ? `You are an expert frontend developer (vanilla HTML/CSS/JavaScript ES modules).
+Generate ONE complete, production-ready file.
 Output ONLY the raw file content — no markdown fences, no explanation.
 
-RULES:
-1. ZERO placeholders or TODO comments — full implementation only
-2. This file has ONE responsibility (see role) — don't put other concerns here
-3. Use ES module syntax: export / import
-4. Every function must have real, working code`
+ABSOLUTE RULES:
+1. ZERO placeholders, TODO, or empty functions
+2. Follow the interface contract EXACTLY — same function names, same signatures
+3. This file has ONE responsibility — don't put other concerns here
+4. ES module syntax: export / import
+5. Real, working implementation only`
 
     : `You are an expert Phaser 3 game developer.
-Generate ONE complete, production-ready Phaser 3 scene/file.
-Output ONLY the raw JS content — no markdown, no explanation.
+Generate ONE complete Phaser 3 file.
+Output ONLY raw JS — no markdown, no explanation.
 
-RULES:
-1. ZERO placeholders or TODO — real gameplay code only
-2. Use Phaser 3 Graphics API for all visuals (no image files)
-3. ES module syntax: import Phaser from 'phaser', export default class
-4. Every method must have real, working implementation`;
+ABSOLUTE RULES:
+1. ZERO placeholders or TODO
+2. Use Phaser 3 Graphics API for visuals (no image files)
+3. ES module: import Phaser from 'phaser', export default class
+4. Full implementation — no empty methods`;
 
-  // ── Instruksi spesifik per file ──
-  const roleInstructions = buildRoleInstructions(fileInfo, plan, isVanilla, isPhaser);
+  // ── Per-file instructions ──
+  const instructions = buildInstructions(p, plan, contract);
 
-  const userPrompt = `Generate: ${fileInfo.path}
+  const userPrompt = `Generate: ${p}
 Role: ${fileInfo.role}
 
 Blueprint:
 ${blueprint}
 
-All project files:
-${fileList}
+${myContract ? `YOUR EXACT INTERFACE CONTRACT (follow this precisely):\n${myContract}\n` : ""}
+${allContracts ? `ALL FILE CONTRACTS (for imports reference):\n${allContracts}\n` : ""}
+${domIds ? `DOM IDs to use:\n${domIds}\n` : ""}
+${criticalRules ? `CRITICAL RULES:\n- ${criticalRules}\n` : ""}
 
-Already generated (for imports/context):
-${context || "(none yet)"}
+Already generated files:
+${context || "(none)"}
 
-Specific instructions for this file:
-${roleInstructions}
+Specific instructions:
+${instructions}
 
-OUTPUT the complete ${fileInfo.path} now. Real code only, no placeholders.`;
+Generate complete ${p} now.`;
 
   const content = await callAI(systemPrompt, userPrompt, 8000);
 
@@ -211,140 +310,161 @@ OUTPUT the complete ${fileInfo.path} now. Real code only, no placeholders.`;
   ];
   for (const re of banned) {
     if (re.test(content)) {
-      console.warn(`  ♻️  Placeholder di ${fileInfo.path}, retry ${attempt+1}...`);
-      return generateOneFile(fileInfo, blueprint, plan, alreadyGenerated, attempt + 1);
+      console.warn(`  ♻️  Placeholder di ${p}, retry ${attempt+1}...`);
+      return generateOneFile(fileInfo, blueprint, plan, contract, alreadyGenerated, attempt + 1);
     }
   }
 
   // Tolak file terlalu pendek
-  const minLen = fileInfo.path.endsWith(".css") ? 200 : 400;
+  const minLen = p.endsWith(".css") ? 300 : p === "index.html" ? 200 : 500;
   if (content.length < minLen) {
-    console.warn(`  ♻️  ${fileInfo.path} terlalu pendek (${content.length} chars), retry...`);
-    return generateOneFile(fileInfo, blueprint, plan, alreadyGenerated, attempt + 1);
+    console.warn(`  ♻️  ${p} terlalu pendek (${content.length}), retry...`);
+    return generateOneFile(fileInfo, blueprint, plan, contract, alreadyGenerated, attempt + 1);
   }
 
   return content;
 }
 
-// ── Instruksi spesifik per role ──────────────────────────────
+// ── Per-file instructions ────────────────────────────────────
 
-function buildRoleInstructions(fileInfo, plan, isVanilla, isPhaser) {
-  const p = fileInfo.path;
-  const role = fileInfo.role;
+function buildInstructions(p, plan, contract) {
   const allPaths = plan.files.map(f => f.path);
+  const cssPaths = allPaths.filter(f => f.endsWith(".css"));
+  const jsPaths  = allPaths.filter(f => f.endsWith(".js") && f.includes("js/main"));
 
-  // ── Vanilla files ──
-  if (p === "index.html") {
-    const cssPaths = allPaths.filter(f => f.endsWith(".css"));
-    const jsPaths  = allPaths.filter(f => f.endsWith(".js"));
-    return `- HTML structure only — NO inline <style> or <script> logic
+  if (p === "index.html" && plan.techStack === "vanilla") {
+    return `- HTML structure ONLY — zero inline <style> or <script> logic
 - Link CSS: ${cssPaths.map(c => `<link rel="stylesheet" href="${c}">`).join(" ")}
-- Load JS as modules: ${jsPaths.filter(j => j.includes("main")).map(j => `<script type="module" src="${j}"></script>`).join(" ")}
-- Create all necessary div containers with IDs matching what other JS files expect
-- Include: #header, #grid-container, #clue-banner, #controls, #keyboard-container, #json-panel`;
+- Load main JS: ${jsPaths.map(j => `<script type="module" src="${j}"></script>`).join(" ")}
+- Create divs with EXACT ids from contract: ${Object.keys(contract?.domIds || {}).map(id => `id="${id}"`).join(", ")}
+- win-overlay div must have style="display:none" by default`;
   }
 
   if (p.endsWith(".css")) {
-    return `- Complete CSS for the entire app
-- Mobile-first, responsive (min 360px)
-- Dark theme unless blueprint specifies otherwise
-- Style all elements: grid cells, keyboard keys, buttons, panels
-- Cell states: .active (selected), .highlighted (word), .correct (green), .wrong (red), .black (blocker)
-- Smooth transitions on cell state changes`;
+    return `- Complete CSS for entire app
+- Mobile-first, responsive (360px minimum)
+- Style ALL dom elements including: ${Object.keys(contract?.domIds || {}).join(", ")}
+- Cell states: .active=yellow bg, .highlighted=light yellow, .correct=light green, .wrong=light red, .black=dark bg
+- #win-overlay: fixed fullscreen, centered content, hidden by default
+- Smooth transitions on cell state changes
+- Virtual keyboard keys: large touch targets (min 36px), clear borders`;
   }
 
-  if (p === "js/data.js" || p.includes("data")) {
-    return `- Export the default game data as: export const DEFAULT_DATA = {...}
-- Include the exact JSON data from the blueprint
-- Add helper: export function validateData(data) — check required fields
-- Format: { title, words: [{id, word, clue, row, col, dir},...] }`;
+  if (p.includes("data.js")) {
+    return `- Export: export const DEFAULT_DATA = { title, words: [...] }
+- Use EXACTLY the word data from the blueprint JSON section
+- Each word: { id, word, clue, row, col, dir }
+- Export helper: export function validateData(data) — check required fields exist`;
   }
 
-  if (p === "js/grid.js" || p.includes("grid")) {
-    return `- export function buildGrid(words) — compute grid size from word coordinates, return 2D array
-- export function renderGrid(words, container) — create DOM elements for each cell
-- Each cell: <div class="cell" data-row="X" data-col="Y"> with letter span + number span
-- Black cells fill unused positions automatically
-- Compute grid dimensions: maxRow = max(row + word.length for down words), maxCol = max(col + word.length for across words)`;
+  if (p.includes("grid.js")) {
+    return `- export function buildGridMatrix(words): compute 2D array
+  - gridRows = max(row + (dir==='down' ? word.length : 1)) for all words
+  - gridCols = max(col + (dir==='across' ? word.length : 1)) for all words
+  - cell object: { letter: '', answer: '', wordIds: [], isBlack: false, number: null }
+  - Number cells: assign clue number to first cell of each word (sorted by row then col)
+- export function renderGrid(containerId, words, onCellClick):
+  - CLEAR container innerHTML before rendering
+  - Build grid using buildGridMatrix
+  - Create div.cell for each non-black cell, div.cell.black for black cells
+  - Each cell div: data-row, data-col attributes
+  - Number span inside first cell of each word
+  - Attach click handler calling onCellClick(row, col)
+  - Set CSS grid-template-columns based on computed cols`;
   }
 
-  if (p === "js/keyboard.js" || p.includes("keyboard")) {
-    return `- export function renderKeyboard(container, onKey) — build QWERTY virtual keyboard
-- Rows: QWERTYUIOP / ASDFGHJKL / ZXCVBNM + BACKSPACE
-- Call onKey(letter) on button click/touch
-- Also listen document.addEventListener('keydown') for physical keyboard
-- export function destroyKeyboard() — remove event listeners`;
+  if (p.includes("keyboard.js")) {
+    return `- export function initKeyboard(containerId, onKey):
+  - Render 3-row QWERTY layout: QWERTYUIOP / ASDFGHJKL / ZXCVBNM + BACKSPACE
+  - Each button calls onKey(letter) or onKey('BACKSPACE')
+  - Also attach document.addEventListener('keydown') for physical keyboard
+  - Store listener reference for cleanup
+- export function destroyKeyboard(): remove document keydown listener`;
   }
 
-  if (p === "js/game.js" || p.includes("game")) {
-    return `- export class Game — main game controller
-- constructor(data): load word data, initialize state
-- selectCell(row, col): pick active word, highlight cells
-- inputLetter(letter): place letter, advance cursor
-- backspace(): delete letter, move cursor back
-- checkAnswers(): compare input vs solution, mark correct/wrong
-- getHint(): reveal one letter of active word
-- reset(): clear all inputs
-- loadData(newData): replace word data, rebuild grid
-- Track: solvedWords Set, startTime, timer
-- Win condition: all words solved → call onWin callback`;
+  if (p.includes("game.js") && !p.includes("main")) {
+    return `- export class CrosswordGame
+- constructor(words, callbacks):
+  - this.words = words
+  - this.totalWords = words.length  ← WAJIB
+  - this.userGrid = {} // key: "row,col" → letter
+  - this.activeWord = null
+  - this.solvedWords = new Set()
+  - callbacks: { onProgress(solved, total), onWin(timeMs) }
+- selectCell(row, col): find word at cell, set activeWord, highlight cells (add/remove CSS classes)
+- inputLetter(letter): place in userGrid, advance cursor to next cell in active word
+- backspace(): remove last letter, move cursor back
+- checkAnswers():
+  - for each word, check if all cells match solution
+  - add to solvedWords if correct, remove if wrong
+  - update cell CSS classes (.correct / .wrong)
+  - call onProgress callback
+  - call checkWin()
+- checkWin():
+  - GUARD: if (this.totalWords === 0) return false  ← CRITICAL
+  - if (this.solvedWords.size === this.totalWords) → call onWin
+- getHint(): reveal one random unfilled cell of activeWord
+- reset(): clear userGrid, solvedWords, remove CSS classes
+- loadNewData(data): validate data, reset state, store new words, call renderGrid + reinit`;
   }
 
-  if (p === "js/main.js" || (p.endsWith("main.js") && isVanilla)) {
-    const imports = allPaths.filter(f => f !== "index.html" && f !== p && f.endsWith(".js"));
-    return `- Import and wire all modules: ${imports.join(", ")}
-- On DOMContentLoaded: init grid, keyboard, game controller
-- Wire button clicks: CEK → game.checkAnswers(), PETUNJUK → game.getHint(), RESET → game.reset()
-- Wire JSON panel: "Muat Soal" button → parse textarea → game.loadData(newData)
-- Show error message if JSON invalid
-- onWin callback: show overlay with completion time`;
+  if (p.includes("main.js") || (p.endsWith("main.js"))) {
+    const imports = allPaths.filter(f => f !== "index.html" && !p.includes(f) && f.endsWith(".js"));
+    return `- Import ALL modules: ${imports.join(", ")}
+- DOMContentLoaded handler:
+  1. Load DEFAULT_DATA
+  2. Call renderGrid('grid-container', data.words, handleCellClick)  ← FIRST
+  3. Create game = new CrosswordGame(data.words, { onProgress, onWin })  ← SECOND
+  4. Call initKeyboard('keyboard-container', handleKey)  ← THIRD
+- handleCellClick(row, col): game.selectCell(row, col), update clue banner text
+- handleKey(letter): if letter==='BACKSPACE' game.backspace() else game.inputLetter(letter)
+- onProgress(solved, total): update #progress-text innerText = solved+"/"+total+" kata"
+- onWin(timeMs): format time as MM:SS, show #win-overlay, set time text
+- Button: CEK → game.checkAnswers()
+- Button: PETUNJUK → game.getHint()
+- Button: RESET → game.reset(), clear all .correct/.wrong/.active CSS classes
+- JSON panel: "Muat Soal" → parse textarea JSON → validate → game.loadNewData(data), re-renderGrid
+- Show error message in #json-error span if JSON invalid`;
   }
 
-  // ── Phaser files ──
-  if (p === "index.html" && isPhaser) {
-    return `- Standard HTML5 with <div id="game">
-- <script type="module" src="./src/main.js"></script>
-- CSS: body margin 0, background black, overflow hidden`;
+  // Phaser scenes
+  if (p === "index.html" && plan.techStack === "phaser") {
+    return `- <div id="game">, <script type="module" src="./src/main.js"></script>
+- CSS: body margin 0, background #000, overflow hidden`;
   }
-
-  if (p === "src/main.js" && isPhaser) {
+  if (p === "src/main.js" && plan.techStack === "phaser") {
     const scenes = allPaths.filter(f => f.includes("scenes/"));
-    return `- Import all scenes: ${scenes.join(", ")}
-- Phaser.Game config: type AUTO, physics arcade, scale FIT+CENTER_BOTH
-- Register all scenes in array`;
+    return `- Import: ${scenes.join(", ")}
+- Phaser.Game: type AUTO, arcade physics, Scale.FIT + CENTER_BOTH
+- scenes array: all imported scenes`;
+  }
+  if (p.includes("scenes/") && plan.techStack === "phaser") {
+    return `- Extend Phaser.Scene, implement ALL blueprint mechanics
+- Phaser Graphics only: add.rectangle(), add.circle(), add.text()
+- ZERO empty methods
+- Colors: player=0x4488ff, enemy=0xff4444, platform=0x44aa44, coin=0xffdd00`;
   }
 
-  if (p.includes("scenes/") && isPhaser) {
-    return `- Extend Phaser.Scene
-- Implement ALL mechanics from blueprint with real code
-- Use Phaser Graphics API: add.rectangle(), add.circle(), add.text()
-- NO empty methods — every create/update must have real logic
-- Colors: player=0x4488ff, enemy=0xff4444, platform=0x44aa44, item=0xffdd00`;
-  }
-
-  return `- Implement: ${role}`;
+  return `- Implement: ${plan.files.find(f => f.path === p)?.role || p}`;
 }
 
-// ── STEP 3: GENERATE SEMUA FILE ──────────────────────────────
+// ── STEP 4: RUN GENERATOR ────────────────────────────────────
 
-async function runGenerator(blueprint, plan) {
-  log("\n🤖 [Step 2] Generate file per file...");
+async function runGenerator(blueprint, plan, contract) {
+  log("\n🤖 [Step 3] Generate file per file...");
 
   const generated = [];
-
-  // Urutan optimal: HTML → CSS → data → logic modules → main/wiring
-  const ordered = orderFiles(plan.files);
+  const ordered   = orderFiles(plan.files);
 
   for (const fileInfo of ordered) {
-    log(`  📝 ${fileInfo.path} (${fileInfo.role})`);
+    log(`  📝 ${fileInfo.path}`);
     try {
-      const content = await generateOneFile(fileInfo, blueprint, plan, generated);
+      const content = await generateOneFile(fileInfo, blueprint, plan, contract, generated);
       generated.push({ ...fileInfo, content });
       writeFile(fileInfo.path, content);
-      // Jeda kecil antar request
       await new Promise(r => setTimeout(r, 400));
     } catch (err) {
-      console.error(`  ❌ Gagal: ${fileInfo.path} — ${err.message}`);
+      console.error(`  ❌ ${fileInfo.path} — ${err.message}`);
     }
   }
 
@@ -352,46 +472,44 @@ async function runGenerator(blueprint, plan) {
 }
 
 function orderFiles(files) {
-  const priority = (f) => {
-    if (f.path === "index.html") return 0;
-    if (f.path.endsWith(".css")) return 1;
-    if (f.path.includes("data")) return 2;
-    if (f.path.includes("grid")) return 3;
-    if (f.path.includes("keyboard")) return 4;
+  const pri = (f) => {
+    if (f.path === "index.html")              return 0;
+    if (f.path.endsWith(".css"))              return 1;
+    if (f.path.includes("data"))             return 2;
+    if (f.path.includes("grid"))             return 3;
+    if (f.path.includes("keyboard"))         return 4;
     if (f.path.includes("game") && !f.path.includes("main")) return 5;
     if (f.path.includes("Scene") && !f.path.includes("Game")) return 6;
-    if (f.path.includes("GameScene")) return 7;
-    if (f.path.includes("entities") || f.path.includes("systems")) return 8;
-    if (f.path.includes("main")) return 9; // main.js selalu terakhir
+    if (f.path.includes("entities") || f.path.includes("systems")) return 7;
+    if (f.path.includes("GameScene"))        return 8;
+    if (f.path.includes("main"))             return 9;
     return 5;
   };
-  return [...files].sort((a, b) => priority(a) - priority(b));
+  return [...files].sort((a, b) => pri(a) - pri(b));
 }
 
 // ── MAIN ─────────────────────────────────────────────────────
 
 async function main() {
-  log("🚀 AI GAME BUILDER v4");
+  log("🚀 AI GAME BUILDER v5");
   log(`   Model: ${CONFIG.model}`);
   log("=".repeat(50));
 
   const blueprint = readBlueprint();
-  log(`📖 Blueprint: ${blueprint.length} chars`);
+  const plan      = await runPlanner(blueprint);
+  const contract  = await buildContract(blueprint, plan);
+  const files     = await runGenerator(blueprint, plan, contract);
 
-  const plan = await runPlanner(blueprint);
-  const files = await runGenerator(blueprint, plan);
-
-  // Buat dist/ untuk vanilla (tidak perlu Vite build)
+  // Vanilla: copy ke dist/ (tidak perlu Vite build)
   if (plan.techStack === "vanilla") {
-    log("\n📦 Copying to dist/ (vanilla — no build needed)...");
+    log("\n📦 Copying to dist/...");
     fs.mkdirSync(path.join(ROOT, "dist"), { recursive: true });
     for (const f of files) {
-      const src  = path.join(ROOT, f.path);
       const dest = path.join(ROOT, "dist", f.path);
       fs.mkdirSync(path.dirname(dest), { recursive: true });
-      fs.copyFileSync(src, dest);
-      console.log(`  📋 dist/${f.path}`);
+      fs.copyFileSync(path.join(ROOT, f.path), dest);
     }
+    log("  ✅ dist/ ready");
   }
 
   fs.writeFileSync(
@@ -401,7 +519,8 @@ async function main() {
       model: CONFIG.model,
       techStack: plan.techStack,
       filesGenerated: files.map(f => f.path),
-      plan
+      plan,
+      contract
     }, null, 2)
   );
 
