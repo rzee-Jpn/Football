@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-02-21T16:15:04.698Z",
+  "timestamp": "2026-02-21T16:38:06.309Z",
   "model": "deepseek/deepseek-chat",
   "filesGenerated": [
     "index.html",
@@ -18,11 +18,16 @@
       "src/entities/Enemy.js",
       "src/entities/Coin.js",
       "src/entities/Ladder.js",
-      "src/systems/ControlsSystem.js",
-      "src/systems/CollisionSystem.js",
+      "src/systems/PhysicsSystem.js",
       "src/systems/ScoreSystem.js",
-      "src/assets/sprites/",
-      "src/assets/sounds/"
+      "src/systems/LivesSystem.js",
+      "src/assets/sprites/player.png",
+      "src/assets/sprites/enemies.png",
+      "src/assets/sprites/coins.png",
+      "src/assets/sprites/background.png",
+      "src/assets/sounds/jump.wav",
+      "src/assets/sounds/coin.wav",
+      "src/assets/sounds/gameover.wav"
     ],
     "mechanics": [
       "Player jump and double jump",
@@ -33,6 +38,6 @@
       "Score multiplier",
       "Lives system (3 lives)"
     ],
-    "notes": "Uses Phaser 3 with separate entity components for player, enemies, and collectibles. Includes systems for controls, collisions, and scoring. Assets organized in sprites and sounds folders."
+    "notes": "Retro pixel 16-bit style with increasing difficulty per level. Includes mobile touch controls, sound effects, high score system, and game over/win screens."
   }
 }
