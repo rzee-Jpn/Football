@@ -1,74 +1,68 @@
 ```javascript
 import { DEFAULT_DATA } from './data.js';
-import { buildGrid } from './grid.js';
-import { renderKeyboard } from './keyboard.js';
-import { Game } from './game.js';
+import { renderGrid, clearAllClasses } from './grid.js';
+import { initKeyboard } from './keyboard.js';
+import { CrosswordGame } from './game.js';
 
 document.addEventListener('DOMContentLoaded', () => {
-    const gridContainer = document.getElementById('crossword-grid');
-    const keyboardContainer = document.getElementById('keyboard');
-    const clueBanner = document.getElementById('clue-banner');
-    const progress = document.getElementById('progress');
-    const jsonTextarea = document.getElementById('json-textarea');
-    const loadButton = document.getElementById('load-button');
-    const checkButton = document.getElementById('check-button');
-    const hintButton = document.getElementById('hint-button');
-    const resetButton = document.getElementById('reset-button');
-    const overlay = document.getElementById('overlay');
-    const overlayMessage = document.getElementById('overlay-message');
+  const data = DEFAULT_DATA;
 
-    const onWin = (time) => {
-        overlayMessage.textContent = `🎉 Selamat! Waktu penyelesaian: ${time} detik`;
-        overlay.style.display = 'flex';
-    };
+  const handleCellClick = (row, col) => {
+    const clue = game.selectCell(row, col);
+    document.getElementById('clue-banner').textContent = clue;
+  };
 
-    let game = new Game(DEFAULT_DATA, onWin);
+  const handleKey = (key) => {
+    if (key === 'BACKSPACE') {
+      game.backspace();
+    } else {
+      game.inputLetter(key);
+    }
+  };
 
-    const renderGame = () => {
-        gridContainer.innerHTML = '';
-        gridContainer.appendChild(buildGrid(game.words));
-        progress.textContent = `${game.solvedWords.size}/${game.words.length} kata`;
-    };
+  const onProgress = ({ correct, total }) => {
+    document.getElementById('progress-text').textContent = `${correct}/${total} kata`;
+  };
 
-    const handleKeyPress = (key) => {
-        if (key === 'BACKSPACE') {
-            game.handleBackspace();
-        } else {
-            game.handleInput(key);
-        }
-        renderGame();
-    };
+  const onWin = (elapsedMs) => {
+    const minutes = Math.floor(elapsedMs / 60000);
+    const seconds = Math.floor((elapsedMs % 60000) / 1000);
+    const timeString = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    const winOverlay = document.getElementById('win-overlay');
+    winOverlay.textContent = `🎉 Selamat! Waktu: ${timeString}`;
+    winOverlay.style.display = 'block';
+  };
 
-    renderKeyboard(keyboardContainer, handleKeyPress);
-    renderGame();
-
-    loadButton.addEventListener('click', () => {
-        try {
-            const newData = JSON.parse(jsonTextarea.value);
-            game = new Game(newData, onWin);
-            renderGame();
-        } catch (error) {
-            alert('JSON tidak valid');
-        }
+  const wireButtons = () => {
+    document.getElementById('cek-btn').addEventListener('click', () => {
+      game.checkAnswers();
     });
 
-    checkButton.addEventListener('click', () => {
-        game.checkAnswers();
-        renderGame();
+    document.getElementById('petunjuk-btn').addEventListener('click', () => {
+      game.getHint();
     });
 
-    hintButton.addEventListener('click', () => {
-        game.getHint();
-        renderGame();
+    document.getElementById('reset-btn').addEventListener('click', () => {
+      game.reset();
+      clearAllClasses(['correct', 'wrong', 'active', 'highlighted']);
     });
 
-    resetButton.addEventListener('click', () => {
-        game.reset();
-        renderGame();
+    document.getElementById('muat-btn').addEventListener('click', () => {
+      const jsonTextarea = document.getElementById('json-textarea');
+      const jsonError = document.getElementById('json-error');
+      try {
+        const newData = JSON.parse(jsonTextarea.value);
+        game.loadNewData(newData);
+        jsonError.textContent = '';
+      } catch (error) {
+        jsonError.textContent = 'JSON tidak valid';
+      }
     });
+  };
 
-    overlay.addEventListener('click', () => {
-        overlay.style.display = 'none';
-    });
+  renderGrid('grid-container', data.words, handleCellClick);
+  const game = new CrosswordGame(data.words, { onProgress, onWin });
+  initKeyboard('keyboard-container', handleKey);
+  wireButtons();
 });
 ```

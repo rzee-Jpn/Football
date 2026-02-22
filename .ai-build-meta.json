@@ -1,15 +1,58 @@
 {
-  "timestamp": "2026-02-21T18:17:01.923Z",
+  "timestamp": "2026-02-22T00:10:13.379Z",
   "model": "deepseek/deepseek-chat",
   "techStack": "vanilla",
   "filesGenerated": [
-    "index.html",
-    "css/style.css",
-    "js/data.js",
-    "js/grid.js",
-    "js/keyboard.js",
-    "js/game.js",
-    "js/main.js"
+    {
+      "path": "index.html",
+      "domain": "structure",
+      "size": 669
+    },
+    {
+      "path": "css/style.css",
+      "domain": "style",
+      "size": 2570
+    },
+    {
+      "path": "js/data.js",
+      "domain": "data",
+      "size": 2801
+    },
+    {
+      "path": "js/grid.js",
+      "domain": "grid",
+      "size": 3461
+    },
+    {
+      "path": "js/keyboard.js",
+      "domain": "input",
+      "size": 1318
+    },
+    {
+      "path": "js/game-state.js",
+      "domain": "game-state",
+      "size": 514
+    },
+    {
+      "path": "js/game-actions.js",
+      "domain": "game-actions",
+      "size": 4892
+    },
+    {
+      "path": "js/game-validator.js",
+      "domain": "game-validator",
+      "size": 1402
+    },
+    {
+      "path": "js/game.js",
+      "domain": "game-facade",
+      "size": 1592
+    },
+    {
+      "path": "js/main.js",
+      "domain": "init",
+      "size": 2184
+    }
   ],
   "plan": {
     "gameName": "TTS Nusantara",
@@ -17,40 +60,118 @@
     "files": [
       {
         "path": "index.html",
-        "role": "HTML structure only — no inline JS/CSS"
+        "role": "HTML structure only",
+        "domain": "structure"
       },
       {
         "path": "css/style.css",
-        "role": "All styling"
+        "role": "All styling",
+        "domain": "style"
       },
       {
         "path": "js/data.js",
-        "role": "Default game data / JSON — export const DEFAULT_DATA"
+        "role": "Game data + DEFAULT_DATA export",
+        "domain": "data"
       },
       {
         "path": "js/grid.js",
-        "role": "Grid rendering and cell management"
+        "role": "Grid render + cell DOM management",
+        "domain": "grid"
       },
       {
         "path": "js/keyboard.js",
-        "role": "Virtual keyboard and input handling"
+        "role": "Virtual keyboard + physical key listener",
+        "domain": "input"
+      },
+      {
+        "path": "js/game-state.js",
+        "role": "State only: userGrid, activeWord, solvedWords",
+        "domain": "game-state"
+      },
+      {
+        "path": "js/game-actions.js",
+        "role": "Actions: inputLetter, backspace, getHint — imports game-state",
+        "domain": "game-actions"
+      },
+      {
+        "path": "js/game-validator.js",
+        "role": "checkAnswers, checkWin — imports game-state",
+        "domain": "game-validator"
       },
       {
         "path": "js/game.js",
-        "role": "Game logic: check answers, hints, timer, win"
+        "role": "Facade: re-exports from state+actions+validator, public API only",
+        "domain": "game-facade"
       },
       {
         "path": "js/main.js",
-        "role": "App init, wires all modules together"
+        "role": "App init, wires all modules",
+        "domain": "init"
       }
-    ],
-    "mechanics": [
-      "Grid rendering based on JSON coordinates",
-      "Word selection and highlighting",
-      "Input handling with virtual keyboard",
-      "Answer validation and hint system",
-      "Dynamic JSON loading and grid rebuilding"
-    ],
-    "notes": "Ensure responsive design for mobile web (360px-768px)."
+    ]
+  },
+  "contract": {
+    "domIds": {
+      "grid-container": "Container for the crossword grid",
+      "clue-banner": "Displays the current clue",
+      "progress-text": "Shows progress (e.g., '3/10 words solved')",
+      "keyboard-container": "Container for the virtual keyboard",
+      "json-textarea": "Textarea for JSON input (if applicable)",
+      "json-error": "Displays JSON validation errors (if applicable)",
+      "win-overlay": "Overlay shown when the game is won — must be display:none by default"
+    },
+    "exports": {
+      "js/data.js": [
+        "export const DEFAULT_DATA",
+        "export function validateData(data): boolean"
+      ],
+      "js/grid.js": [
+        "export function renderGrid(containerId, words, onCellClick): void",
+        "export function highlightWord(cells, className): void",
+        "export function clearHighlights(): void"
+      ],
+      "js/keyboard.js": [
+        "export function initKeyboard(containerId, onKey): void",
+        "export function destroyKeyboard(): void"
+      ],
+      "js/game-state.js": [
+        "export function createState(words): GameState",
+        "export function getState(): GameState",
+        "export function setState(partial): void"
+      ],
+      "js/game-actions.js": [
+        "export function selectCell(row, col): void",
+        "export function inputLetter(letter): void",
+        "export function backspace(): void",
+        "export function getHint(): void"
+      ],
+      "js/game-validator.js": [
+        "export function checkAnswers(): {correct, total}",
+        "export function checkWin(): boolean — GUARD: if totalWords===0 return false"
+      ],
+      "js/game.js": [
+        "export class CrosswordGame (or export object with public API)",
+        "  init(words, callbacks): void",
+        "  selectCell(row, col): void",
+        "  inputLetter(letter): void",
+        "  backspace(): void",
+        "  checkAnswers(): void",
+        "  getHint(): void",
+        "  reset(): void",
+        "  loadNewData(data): void"
+      ],
+      "js/main.js": [
+        "import only from game.js facade",
+        "DOMContentLoaded sequence: renderGrid → new CrosswordGame → initKeyboard"
+      ]
+    },
+    "criticalRules": [
+      "checkWin MUST guard: if totalWords === 0 return false",
+      "renderGrid MUST clear container innerHTML before render",
+      "win-overlay MUST be display:none by default, shown only on win",
+      "game-state is single source of truth — never duplicate state",
+      "main.js imports ONLY from facade (game.js), never from sub-domains directly",
+      "all DOM ids must match contract exactly — no hardcoded strings elsewhere"
+    ]
   }
 }

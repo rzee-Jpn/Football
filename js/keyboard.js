@@ -1,61 +1,47 @@
 ```javascript
-export function renderKeyboard(container, onKey) {
-    const keyboardRows = [
-        ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
-        ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'],
-        ['Z', 'X', 'C', 'V', 'B', 'N', 'M', 'BACKSPACE']
-    ];
+export function initKeyboard(containerId, onKey) {
+  const container = document.getElementById(containerId);
+  container.innerHTML = '';
 
-    const keyboard = document.createElement('div');
-    keyboard.className = 'keyboard';
+  const rows = ['QWERTYUIOP', 'ASDFGHJKL', 'ZXCVBNM'];
 
-    keyboardRows.forEach(row => {
-        const rowDiv = document.createElement('div');
-        rowDiv.className = 'keyboard-row';
+  rows.forEach((row, rowIndex) => {
+    const rowDiv = document.createElement('div');
+    rowDiv.className = 'keyboard-row';
 
-        row.forEach(key => {
-            const keyButton = document.createElement('button');
-            keyButton.className = 'keyboard-key';
-            keyButton.textContent = key;
-            keyButton.addEventListener('click', () => handleKeyPress(key));
-            rowDiv.appendChild(keyButton);
-        });
-
-        keyboard.appendChild(rowDiv);
+    row.split('').forEach(key => {
+      const button = document.createElement('button');
+      button.textContent = key;
+      button.dataset.key = key;
+      button.addEventListener('click', () => onKey(key));
+      rowDiv.appendChild(button);
     });
 
-    container.appendChild(keyboard);
-
-    function handleKeyPress(key) {
-        if (key === 'BACKSPACE') {
-            onKey('Backspace');
-        } else {
-            onKey(key.toUpperCase());
-        }
+    if (rowIndex === rows.length - 1) {
+      const backspaceButton = document.createElement('button');
+      backspaceButton.textContent = '⌫';
+      backspaceButton.dataset.key = 'BACKSPACE';
+      backspaceButton.addEventListener('click', () => onKey('BACKSPACE'));
+      rowDiv.appendChild(backspaceButton);
     }
 
-    function handlePhysicalKeyPress(event) {
-        const key = event.key.toUpperCase();
-        if (/^[A-Z]$/.test(key)) {
-            onKey(key);
-        } else if (event.key === 'Backspace') {
-            onKey('Backspace');
-        }
+    container.appendChild(rowDiv);
+  });
+
+  const physicalHandler = (e) => {
+    if (e.key.match(/^[a-zA-Z]$/)) {
+      onKey(e.key.toUpperCase());
     }
+    if (e.key === 'Backspace') {
+      onKey('BACKSPACE');
+    }
+    e.preventDefault();
+  };
 
-    document.addEventListener('keydown', handlePhysicalKeyPress);
-
-    return {
-        destroy: () => {
-            document.removeEventListener('keydown', handlePhysicalKeyPress);
-            container.removeChild(keyboard);
-        }
-    };
+  document.addEventListener('keydown', physicalHandler);
 }
 
-export function destroyKeyboard(keyboard) {
-    if (keyboard && keyboard.destroy) {
-        keyboard.destroy();
-    }
+export function destroyKeyboard() {
+  document.removeEventListener('keydown', physicalHandler);
 }
 ```
