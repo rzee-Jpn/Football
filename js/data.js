@@ -16,35 +16,52 @@ export const DEFAULT_DATA = {
 };
 
 export function validateData(data) {
-  if (!data || typeof data !== 'object') {
-    return false;
+  if (!data) {
+    throw new Error('Data is required');
   }
+
+  if (typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error('Data must be an object');
+  }
+
   if (!data.title || typeof data.title !== 'string') {
-    return false;
+    throw new Error('Data must have a title string');
   }
+
   if (!Array.isArray(data.words) || data.words.length === 0) {
-    return false;
+    throw new Error('Data must have a non-empty words array');
   }
+
   for (const word of data.words) {
-    if (!word.id || typeof word.id !== 'number') {
-      return false;
+    if (typeof word !== 'object' || Array.isArray(word)) {
+      throw new Error('Each word must be an object');
     }
-    if (!word.word || typeof word.word !== 'string') {
-      return false;
+
+    if (typeof word.id !== 'number' || word.id <= 0) {
+      throw new Error('Each word must have a positive numeric id');
     }
-    if (!word.clue || typeof word.clue !== 'string') {
-      return false;
+
+    if (typeof word.word !== 'string' || word.word.length === 0) {
+      throw new Error('Each word must have a non-empty word string');
     }
+
+    if (typeof word.clue !== 'string' || word.clue.length === 0) {
+      throw new Error('Each word must have a non-empty clue string');
+    }
+
     if (typeof word.row !== 'number' || word.row < 0) {
-      return false;
+      throw new Error('Each word must have a non-negative row number');
     }
+
     if (typeof word.col !== 'number' || word.col < 0) {
-      return false;
+      throw new Error('Each word must have a non-negative column number');
     }
-    if (!word.dir || (word.dir !== 'across' && word.dir !== 'down')) {
-      return false;
+
+    if (word.dir !== 'across' && word.dir !== 'down') {
+      throw new Error('Each word must have direction "across" or "down"');
     }
   }
+
   return true;
 }
 ```

@@ -1,88 +1,30 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TTS Nusantara</title>
-    <link rel="stylesheet" href="css/style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TTS Nusantara</title>
+  <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-    <div id="app">
-        <header id="header">
-            <h1>TTS Nusantara</h1>
-            <div id="progress">0/10 kata</div>
-        </header>
+  <header>
+    <h1>TTS Nusantara</h1>
+    <div id="progress-text"></div>
+  </header>
 
-        <main>
-            <div id="grid-container">
-                <div id="crossword-grid"></div>
-            </div>
+  <main>
+    <div id="grid-container"></div>
+    <div id="clue-banner"></div>
+    <div id="keyboard-container"></div>
+  </main>
 
-            <div id="clue-banner">
-                <p id="current-clue">Pilih kata untuk melihat petunjuk</p>
-            </div>
+  <section>
+    <div id="json-textarea"></div>
+    <div id="json-error"></div>
+  </section>
 
-            <div id="controls">
-                <button id="check-btn" class="control-btn">CEK</button>
-                <button id="hint-btn" class="control-btn">PETUNJUK</button>
-                <button id="reset-btn" class="control-btn">RESET</button>
-            </div>
+  <div id="win-overlay" style="display:none">🎉 Selamat!</div>
 
-            <div id="keyboard-container">
-                <div class="keyboard-row">
-                    <button class="key" data-key="Q">Q</button>
-                    <button class="key" data-key="W">W</button>
-                    <button class="key" data-key="E">E</button>
-                    <button class="key" data-key="R">R</button>
-                    <button class="key" data-key="T">T</button>
-                    <button class="key" data-key="Y">Y</button>
-                    <button class="key" data-key="U">U</button>
-                    <button class="key" data-key="I">I</button>
-                    <button class="key" data-key="O">O</button>
-                    <button class="key" data-key="P">P</button>
-                </div>
-                <div class="keyboard-row">
-                    <button class="key" data-key="A">A</button>
-                    <button class="key" data-key="S">S</button>
-                    <button class="key" data-key="D">D</button>
-                    <button class="key" data-key="F">F</button>
-                    <button class="key" data-key="G">G</button>
-                    <button class="key" data-key="H">H</button>
-                    <button class="key" data-key="J">J</button>
-                    <button class="key" data-key="K">K</button>
-                    <button class="key" data-key="L">L</button>
-                </div>
-                <div class="keyboard-row">
-                    <button class="key" data-key="Z">Z</button>
-                    <button class="key" data-key="X">X</button>
-                    <button class="key" data-key="C">C</button>
-                    <button class="key" data-key="V">V</button>
-                    <button class="key" data-key="B">B</button>
-                    <button class="key" data-key="N">N</button>
-                    <button class="key" data-key="M">M</button>
-                    <button id="backspace-btn" class="key special-key">⌫</button>
-                </div>
-            </div>
-
-            <div id="json-panel" class="collapsed">
-                <button id="toggle-json-btn">Ganti Soal ▼</button>
-                <div id="json-editor">
-                    <textarea id="json-input" placeholder="Tempel JSON soal baru di sini..."></textarea>
-                    <button id="load-json-btn">Muat Soal</button>
-                    <div id="json-error"></div>
-                </div>
-            </div>
-        </main>
-
-        <div id="win-overlay" class="hidden">
-            <div class="win-content">
-                <h2>🎉 Selamat!</h2>
-                <p id="completion-time">Waktu penyelesaian: 00:00</p>
-                <button id="play-again-btn">Main Lagi</button>
-            </div>
-        </div>
-    </div>
-
-    <script type="module" src="js/main.js"></script>
+  <script type="module" src="js/main.js"></script>
 </body>
 </html>
